@@ -272,7 +272,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 If you use this pipeline in your research, please cite:
 
 ```
-Author, A. (Year). fMRI Feature Extraction Container: A Comprehensive Pipeline for Analytical Metrics. 
+Author, Dilanjan DK (2025). fMRI Feature Extraction Container: A Comprehensive Pipeline for Analytical Metrics. ( Paper on the way)
 ```
 
 ## Acknowledgments
@@ -282,3 +282,5 @@ This pipeline incorporates several open-source tools and packages:
 - Nilearn and Nibabel for neuroimaging analysis
 - AFNI for ReHo computation
 - QM_FFT_Feature_Package for quantum mechanical analysis 
+
+Developed at the BrainLab by Dilanjan DK ;-
