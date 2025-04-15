@@ -24,6 +24,7 @@ Detailed documentation for using this pipeline is available in the following fil
 - [**Quick Reference**](docs/QUICK_REFERENCE.md): Common commands and procedures for everyday use
 - [**RSN Guide**](docs/RSN_GUIDE.md): Detailed information about the Resting State Network analysis
 - [**Visualization Guide**](docs/VISUALIZATION_GUIDE.md): Instructions for visualizing and interpreting outputs
+- [**Technical Details**](docs/TECHNICAL_DETAILS.md): Theoretical background and computational methods for all extracted features
 
 For a complete documentation index, see the [Documentation README](docs/README.md).
 

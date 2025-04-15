@@ -19,3 +19,4 @@ rule compute_qm_fft:
     wildcards: subject=sub-17017
     resources: tmpdir=/tmp
 
+Will exit after finishing currently running jobs (scheduler).
