@@ -99,10 +99,10 @@ if [[ ! "$INPUT_DIR" = /* ]]; then
 fi
 
 # Set output directory inside input directory
-OUTPUT_DIR="${INPUT_DIR}/analytical_metrics"
+# OUTPUT_DIR="${INPUT_DIR}/analytical_metrics"
 
 # Create output directory if it doesn't exist
-mkdir -p "$OUTPUT_DIR"
+# mkdir -p "$OUTPUT_DIR"
 
 # Check if Docker is installed
 if ! command -v docker &> /dev/null; then
@@ -214,25 +214,46 @@ else
     FORCE_ARG=""
 fi
 
-# Run the container with the configured parameters
 echo "Starting fMRI Feature Extraction Pipeline..."
 echo "Input directory: $INPUT_DIR"
-echo "Output directory: $OUTPUT_DIR"
+# echo "Output directory: $OUTPUT_DIR" # This variable is no longer used here
 echo "Features: ${FEATURES[*]:-all}"
 echo "Subject: ${SUBJECT:-all subjects in config}"
 
+# Build arguments for run_container.sh run
+RUN_ARGS=(
+    run
+    -v "$INPUT_DIR:/data/input"
+    # -v "$OUTPUT_DIR:/data/output" # This mount is intentionally removed
+    -v "$SCRIPT_DIR/workflows:/app/workflows"
+)
+if [[ -n "$CONFIG_MOUNT" ]]; then
+    # Add config mount if it exists (split string into array elements)
+    read -r -a config_mount_array <<< "$CONFIG_MOUNT"
+    RUN_ARGS+=("${config_mount_array[@]}")
+fi
+RUN_ARGS+=(
+    snakemake
+    --snakefile /app/workflows/Snakefile
+    -d /app/workflows
+)
+if [[ -n "$CORES_ARG" ]]; then
+    read -r -a cores_arg_array <<< "$CORES_ARG"
+    RUN_ARGS+=("${cores_arg_array[@]}")
+fi
+if [[ -n "$FORCE_ARG" ]]; then
+    RUN_ARGS+=("$FORCE_ARG")
+fi
+if [[ -n "$TARGETS" ]]; then
+    # Add targets if they exist (handle potential spaces in target list)
+    read -r -a target_array <<< "$TARGETS"
+    RUN_ARGS+=("${target_array[@]}")
+fi
+
 # Execute the container
-"$SCRIPT_DIR/run_container.sh" run \
-    -v "$INPUT_DIR:/data/input" \
-    -v "$OUTPUT_DIR:/data/output" \
-    -v "$SCRIPT_DIR/workflows:/app/workflows" \
-    $CONFIG_MOUNT \
-    snakemake \
-    --snakefile /app/workflows/Snakefile \
-    -d /app/workflows \
-    $CORES_ARG \
-    $FORCE_ARG \
-    $TARGETS
+echo "Running command in container: ${RUN_ARGS[*]:1}" # Print command excluding 'run'
+echo "With base volumes: -v $INPUT_DIR:/data/input -v $SCRIPT_DIR/workflows:/app/workflows $CONFIG_MOUNT"
+"$SCRIPT_DIR/run_container.sh" "${RUN_ARGS[@]}"
 
 # Cleanup temporary config file if it was created
 if [[ -n "$CONFIG_FILE" && -f "$CONFIG_FILE" ]]; then
@@ -240,4 +261,5 @@ if [[ -n "$CONFIG_FILE" && -f "$CONFIG_FILE" ]]; then
 fi
 
 echo "Pipeline completed successfully!"
-echo "Results are available in: $OUTPUT_DIR" 
+# The following line is commented out as OUTPUT_DIR is no longer defined this way
+# echo "Results are available in: $OUTPUT_DIR" 

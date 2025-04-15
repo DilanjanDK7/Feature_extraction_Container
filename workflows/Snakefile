@@ -34,7 +34,7 @@ rule all:
     input:
         # ALFF outputs
         expand(os.path.join(
-            config["bids_derivatives_dir"],
+            config["output_dir"],
             "{subject}",
             "func",
             "Analytical_metrics",
@@ -44,7 +44,7 @@ rule all:
         
         # fALFF outputs (if enabled)
         expand(os.path.join(
-            config["bids_derivatives_dir"],
+            config["output_dir"],
             "{subject}",
             "func",
             "Analytical_metrics",
@@ -54,7 +54,7 @@ rule all:
         
         # ReHo outputs
         expand(os.path.join(
-            config["bids_derivatives_dir"],
+            config["output_dir"],
             "{subject}",
             "func",
             "Analytical_metrics",
@@ -64,7 +64,7 @@ rule all:
         
         # Hurst exponent outputs
         expand(os.path.join(
-            config["bids_derivatives_dir"],
+            config["output_dir"],
             "{subject}",
             "func",
             "Analytical_metrics",
@@ -74,7 +74,7 @@ rule all:
         
         # Fractal dimension outputs
         expand(os.path.join(
-            config["bids_derivatives_dir"],
+            config["output_dir"],
             "{subject}",
             "func",
             "Analytical_metrics",
@@ -84,7 +84,7 @@ rule all:
         
         # QM FFT outputs
         expand(os.path.join(
-            config["bids_derivatives_dir"],
+            config["output_dir"],
             "{subject}",
             "func",
             "Analytical_metrics",
@@ -94,7 +94,7 @@ rule all:
         
         # RSN activity outputs
         expand(os.path.join(
-            config["bids_derivatives_dir"],
+            config["output_dir"],
             "{subject}",
             "func",
             "Analytical_metrics",

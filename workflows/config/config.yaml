@@ -1,6 +1,6 @@
 # Input/Output settings
 bids_derivatives_dir: "/data/input"  # Path to the parent directory containing subject folders
-output_dir: "/data/output"  # Path where the output data is mounted
+output_dir: "/data/input"  # Path where the output data should be written (now same as input)
 overwrite_existing: true  # Allow overwriting for testing
 
 # Subject settings
