@@ -16,6 +16,39 @@ This package provides a containerized workflow for calculating various analytica
 
 The pipeline uses Snakemake for workflow management and Docker for containerization, ensuring reproducibility and ease of deployment across different systems.
 
+## Pipeline Workflow
+
+The following diagram illustrates the basic workflow of the fMRI Feature Extraction Container:
+
+```mermaid
+graph TD
+    A[Input: BIDS-formatted fMRI data] --> B[Docker Container]
+    
+    subgraph "Docker Container"
+        B --> C[Snakemake Workflow]
+        
+        subgraph "Feature Extraction Pipeline"
+            C --> D1[ALFF/fALFF]
+            C --> D2[ReHo]
+            C --> D3[Hurst Exponent]
+            C --> D4[Fractal Dimension]
+            C --> D5[QM-FFT]
+            C --> D6[RSN Analysis]
+        end
+        
+        D1 --> E[Output Generation]
+        D2 --> E
+        D3 --> E
+        D4 --> E
+        D5 --> E
+        D6 --> E
+    end
+    
+    E --> F[Output: Analytical Metrics]
+```
+
+Each feature extraction module operates independently, allowing you to select which analyses to run via the configuration file or command-line parameters.
+
 ## Documentation
 
 Detailed documentation for using this pipeline is available in the following files:
@@ -24,7 +57,8 @@ Detailed documentation for using this pipeline is available in the following fil
 - [**Quick Reference**](docs/QUICK_REFERENCE.md): Common commands and procedures for everyday use
 - [**RSN Guide**](docs/RSN_GUIDE.md): Detailed information about the Resting State Network analysis
 - [**Visualization Guide**](docs/VISUALIZATION_GUIDE.md): Instructions for visualizing and interpreting outputs
-- [**Technical Details**](docs/TECHNICAL_DETAILS.md): Theoretical background and computational methods for all extracted features
+- [**Technical Details**](docs/TECHNICAL_DETAILS.md): Theoretical background and computational methods for core extracted features
+- [**Advanced Technical Details**](docs/TECHNICAL_DETAILS_ADVANCED.md): Advanced features (RSN Analysis) and integrative approaches
 
 For a complete documentation index, see the [Documentation README](docs/README.md).
 

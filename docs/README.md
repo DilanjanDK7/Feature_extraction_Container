@@ -17,6 +17,11 @@ Welcome to the documentation for the fMRI Feature Extraction Container. This doc
 
 - [**Visualization Guide**](VISUALIZATION_GUIDE.md) - Instructions for visualizing and interpreting outputs
 
+### Technical Documentation
+
+- [**Technical Details**](TECHNICAL_DETAILS.md) - Theoretical background and computational methods for core features
+- [**Advanced Technical Details**](TECHNICAL_DETAILS_ADVANCED.md) - Advanced features (RSN Analysis) and integrative approaches
+
 ### Additional Resources
 
 - [Main README](../README.md) - Overview and quick start information
