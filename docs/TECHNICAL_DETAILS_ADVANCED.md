@@ -135,4 +135,9 @@ As neuroscience continues to evolve, the integration of these established analyt
 
 5. Higuchi T. (1988). Approach to an irregular time series on the basis of the fractal theory. Physica D, 31(2):277-283.
 
-6. Yeo BT, Krienen FM, Sepulcre J, et al. (2011). The organization of the human cerebral cortex estimated by intrinsic functional connectivity. J Neurophysiol, 106(3):1125-1165. 
+6. Yeo BT, Krienen FM, Sepulcre J, et al. (2011). The organization of the human cerebral cortex estimated by intrinsic functional connectivity. J Neurophysiol, 106(3):1125-1165.
+
+## Copyright
+
+Copyright (c) 2024 Dilanjan DK and BrainLab. All rights reserved.
+For permission requests, contact: Dilanjan DK (ddiyabal@uwo.ca) 

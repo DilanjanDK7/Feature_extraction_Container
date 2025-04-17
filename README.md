@@ -310,6 +310,11 @@ If you use this pipeline in your research, please cite:
 Author, Dilanjan DK (2025). fMRI Feature Extraction Container: A Comprehensive Pipeline for Analytical Metrics. ( Paper on the way)
 ```
 
+## Copyright
+
+Copyright (c) 2024 Dilanjan DK and BrainLab. All rights reserved.
+For permission requests, contact: Dilanjan DK (ddiyabal@uwo.ca)
+
 ## Acknowledgments
 
 This pipeline incorporates several open-source tools and packages:

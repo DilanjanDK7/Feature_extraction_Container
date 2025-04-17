@@ -1399,6 +1399,11 @@ The QM-FFT approach continues to evolve, with several promising directions:
 
 5. **Longitudinal Analysis Techniques**: Methods for tracking QM-FFT features over extended time periods to characterize brain development and disease progression
 
++## Copyright
++
++Copyright (c) 2024 Dilanjan DK and BrainLab. All rights reserved.
++For permission requests, contact: Dilanjan DK (ddiyabal@uwo.ca)
++
 ## References
 
 1. Zang YF, He Y, Zhu CZ, et al. (2007). Altered baseline brain activity in children with ADHD revealed by resting-state functional MRI. Brain Dev, 29(2):83-91.

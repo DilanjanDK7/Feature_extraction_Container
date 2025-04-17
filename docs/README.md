@@ -68,6 +68,11 @@ If you'd like to contribute to this documentation or the pipeline itself, please
 3. Make your changes
 4. Submit a pull request
 
+## Copyright
+
+Copyright (c) 2024 Dilanjan DK and BrainLab. All rights reserved.
+For permission requests, contact: Dilanjan DK (ddiyabal@uwo.ca)
+
 ## Contact
 
 For questions or support, please contact [your.email@example.com]. 
