@@ -298,9 +298,6 @@ tar -czf feature_extraction_backup_$(date +%Y-%m-%d_%H%M%S).tar.gz workflows scr
   ./run_container.sh run -v /path/to/input/data:/data/input -v $(pwd)/pipeline_outputs:/data/output -v $(pwd)/workflows:/app/workflows snakemake --snakefile /app/workflows/Snakefile -d /app/workflows --unlock
   ```
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Citation
 
