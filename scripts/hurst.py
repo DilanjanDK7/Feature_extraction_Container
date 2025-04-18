@@ -9,9 +9,43 @@ import time
 import numpy as np
 import nibabel as nib
 import nolds  # For Hurst exponent calculation
+from tqdm import tqdm
+import multiprocessing
+from joblib import Parallel, delayed
+import sys
 
+def compute_voxel_hurst(ts, method='dfa'):
+    """
+    Compute Hurst exponent for a single voxel time series.
+    
+    Parameters:
+    -----------
+    ts : numpy.ndarray
+        Input time series for a single voxel
+    method : str
+        Method for Hurst exponent calculation ('dfa' or 'rs')
+        
+    Returns:
+    --------
+    float
+        Hurst exponent value or NaN if calculation fails
+    """
+    # Skip if time series has no variance
+    if np.std(ts) <= 1e-6:
+        return np.nan
+    
+    try:
+        # Set Hurst calculation method
+        if method == 'dfa':
+            return nolds.dfa(ts)
+        elif method == 'rs':
+            return nolds.hurst_rs(ts)
+        else:
+            return nolds.dfa(ts)  # Default to DFA
+    except Exception:
+        return np.nan
 
-def compute_hurst(fmri_file, output_file, method='dfa', mask_file=None):
+def compute_hurst(fmri_file, output_file, method='dfa', mask_file=None, n_jobs=1, min_var=1e-6):
     """
     Compute Hurst exponent from fMRI data.
     
@@ -25,6 +59,10 @@ def compute_hurst(fmri_file, output_file, method='dfa', mask_file=None):
         Method for Hurst exponent calculation ('dfa' or 'rs'). Default is 'dfa'.
     mask_file : str, optional
         Path to a brain mask. If not provided, a mask will be created based on signal variance.
+    n_jobs : int, optional
+        Number of parallel jobs to run. Default is 1.
+    min_var : float, optional
+        Minimum variance threshold. Time series with variance below this will be skipped.
     """
     print("Starting Hurst exponent calculation...")
     start_time = time.time()
@@ -35,74 +73,64 @@ def compute_hurst(fmri_file, output_file, method='dfa', mask_file=None):
         os.makedirs(output_dir)
     
     # Load fMRI data
-    print(f"Loading fMRI data from {fmri_file}...")
-    img = nib.load(fmri_file)
-    data = img.get_fdata()
-    affine = img.affine
-    header = img.header
+    try:
+        print(f"Loading fMRI data from {fmri_file}...")
+        img = nib.load(fmri_file)
+        data = img.get_fdata()
+        affine = img.affine
+        header = img.header
+    except Exception as e:
+        print(f"Error loading fMRI data: {e}")
+        sys.exit(1)
     
     # Get dimensions
     nx, ny, nz, nt = data.shape
     print(f"Data dimensions: {nx} x {ny} x {nz} x {nt}")
     
     # Create or load mask
-    if mask_file:
-        print(f"Loading mask from {mask_file}...")
-        mask_img = nib.load(mask_file)
-        mask = mask_img.get_fdata() > 0
-    else:
-        print("Creating mask from fMRI data...")
-        # Simple mask: voxels with non-zero variance
-        mask = np.std(data, axis=3) > 0
+    try:
+        if mask_file:
+            print(f"Loading mask from {mask_file}...")
+            mask_img = nib.load(mask_file)
+            mask = mask_img.get_fdata() > 0
+        else:
+            print("Creating mask from fMRI data...")
+            # Simple mask: voxels with non-zero variance
+            mask = np.std(data, axis=3) > min_var
+    except Exception as e:
+        print(f"Error creating/loading mask: {e}")
+        sys.exit(1)
     
     # Ensure mask dimensions match
     if mask.shape[:3] != data.shape[:3]:
-        raise ValueError("Mask dimensions do not match fMRI data dimensions")
+        print(f"Mask dimensions {mask.shape[:3]} do not match fMRI data dimensions {data.shape[:3]}")
+        sys.exit(1)
+    
+    # Create coordinates for voxels to process
+    coords = [(x, y, z) for x in range(nx) for y in range(ny) for z in range(nz) if mask[x, y, z]]
+    print(f"Processing {len(coords)} voxels...")
+    
+    # Parallel processing function
+    def process_voxel(coord):
+        x, y, z = coord
+        ts = data[x, y, z, :]
+        return (x, y, z, compute_voxel_hurst(ts, method))
+    
+    # Set number of jobs
+    actual_n_jobs = min(n_jobs, multiprocessing.cpu_count())
+    print(f"Using {actual_n_jobs} parallel jobs")
+    
+    # Process voxels in parallel with progress bar
+    results = Parallel(n_jobs=actual_n_jobs)(
+        delayed(process_voxel)(coord) for coord in tqdm(coords, desc="Computing Hurst")
+    )
     
     # Create Hurst exponent map
-    print(f"Calculating Hurst exponent using {method} method...")
     hurst_map = np.zeros((nx, ny, nz))
     
-    # Loop through masked voxels
-    total_voxels = np.sum(mask)
-    processed_voxels = 0
-    last_update = 0
-    
-    # Set Hurst calculation method
-    if method == 'dfa':
-        hurst_func = nolds.dfa
-    elif method == 'rs':
-        hurst_func = nolds.hurst_rs
-    else:
-        print(f"Unknown method {method}. Using DFA (detrended fluctuation analysis).")
-        hurst_func = nolds.dfa
-    
-    for x in range(nx):
-        for y in range(ny):
-            for z in range(nz):
-                if mask[x, y, z]:
-                    # Get time series for this voxel
-                    ts = data[x, y, z, :]
-                    
-                    # Skip if time series has no variance
-                    if np.std(ts) <= 1e-6:
-                        continue
-                    
-                    try:
-                        # Calculate Hurst exponent
-                        hurst_map[x, y, z] = hurst_func(ts)
-                    except Exception as e:
-                        # If calculation fails, set to NaN
-                        hurst_map[x, y, z] = np.nan
-                        print(f"Error calculating Hurst at ({x},{y},{z}): {e}")
-                    
-                    processed_voxels += 1
-                    
-                    # Update progress every 5%
-                    progress = processed_voxels / total_voxels
-                    if progress - last_update >= 0.05:
-                        print(f"Progress: {progress * 100:.1f}% ({processed_voxels}/{total_voxels} voxels)")
-                        last_update = progress
+    # Fill the map with results
+    for x, y, z, h in results:
+        hurst_map[x, y, z] = h
     
     # Replace NaNs with 0
     hurst_map = np.nan_to_num(hurst_map)
@@ -112,6 +140,8 @@ def compute_hurst(fmri_file, output_file, method='dfa', mask_file=None):
     if np.sum(brain_mask) > 0:
         mean_hurst = np.mean(hurst_map[brain_mask])
         std_hurst = np.std(hurst_map[brain_mask])
+        print(f"Hurst exponent statistics: mean = {mean_hurst:.4f}, std = {std_hurst:.4f}")
+        
         if std_hurst > 0:
             hurst_map_norm = np.zeros_like(hurst_map)
             hurst_map_norm[brain_mask] = (hurst_map[brain_mask] - mean_hurst) / std_hurst
@@ -147,7 +177,11 @@ if __name__ == '__main__':
     parser.add_argument('--method', choices=['dfa', 'rs'], default='dfa',
                       help='Method for Hurst calculation (dfa or rs). Default is dfa.')
     parser.add_argument('--mask', help='Brain mask (optional, will be created if not provided)')
+    parser.add_argument('--n-jobs', type=int, default=1, 
+                      help='Number of parallel jobs for computation. Default is 1.')
+    parser.add_argument('--min-var', type=float, default=1e-6,
+                      help='Minimum variance threshold for time series. Default is 1e-6.')
     
     args = parser.parse_args()
     
-    compute_hurst(args.fmri, args.output, args.method, args.mask) 
+    compute_hurst(args.fmri, args.output, args.method, args.mask, args.n_jobs, args.min_var) 

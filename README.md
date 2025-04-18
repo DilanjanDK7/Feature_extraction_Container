@@ -219,17 +219,42 @@ reho_neighborhood: 27  # 27 for 3x3x3 cube
 
 Measures the amplitude of BOLD signal fluctuations in the low-frequency range (typically 0.01-0.08 Hz), providing insight into regional spontaneous brain activity.
 
+- **ALFF**: Amplitude of Low-Frequency Fluctuation directly measures the strength of low-frequency oscillations
+- **fALFF**: Fractional ALFF represents the relative contribution of low-frequency oscillations to the entire frequency spectrum
+- **mALFF**: Mean-normalized ALFF, providing improved sensitivity to neural signal
+- **RSFA**: Resting State Fluctuation Amplitude, an additional metric for characterizing regional activity
+
+Implementation leverages AFNI's `3dRSFC` for efficient and validated computation of all four metrics.
+
 ### ReHo (Regional Homogeneity)
 
 Calculates similarity of the time series of a given voxel to those of its nearest neighbors, reflecting local synchronization of spontaneous brain activity.
 
+- Kendall's coefficient of concordance (KCC) implementation
+- Configurable neighborhood size (6, 18, or 26 neighbors)
+- Optimized calculation for 3D volumes
+
 ### Hurst Exponent
 
-Quantifies the long-range temporal dependence in the fMRI time series, indicating the predictability of the signal.
+Quantifies the long-range temporal dependence in the fMRI time series, indicating the predictability or persistence of the signal.
+
+- **Two computation methods**:
+  - Detrended Fluctuation Analysis (DFA): Robust to non-stationarity in the signal
+  - Rescaled Range Analysis (R/S): Classical approach for long-memory processes
+- Outputs both raw and normalized (z-score) maps
+- Configurable parameters for scale range and trend removal
+- Optimized implementation using the `nolds` library
 
 ### Fractal Dimension
 
 Estimates the complexity and self-similarity of the fMRI time series, providing insight into the chaotic nature of brain activity.
+
+- **Two computation methods**:
+  - Higuchi Fractal Dimension (HFD): Direct time-domain estimate of signal complexity
+  - Power Spectral Density (PSD) method: Frequency-domain approach using spectral slope
+- Outputs both raw and normalized (z-score) maps
+- Configurable parameters (kmax for Higuchi method, frequency range for PSD)
+- Robust implementation with comprehensive error handling
 
 ### QM-FFT (Quantum Mechanical Fourier Transform)
 

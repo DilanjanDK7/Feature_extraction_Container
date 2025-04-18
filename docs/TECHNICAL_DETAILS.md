@@ -188,21 +188,24 @@ Where μ_ALFF and σ_ALFF are the mean and standard deviation of ALFF values acr
 
 In this pipeline, the ALFF calculation is implemented using:
 
-1. **Preprocessing Steps**:
+1. **AFNI Integration**:
+   - Leverages AFNI's `3dRSFC` tool for efficient and validated computation
+   - Supports multiple metrics (ALFF, mALFF, fALFF, RSFA) in a single processing step
+   - Optimized for large 4D datasets with minimal memory footprint
+
+2. **Preprocessing Steps**:
    - Signal extraction using NiBabel and NumPy
-   - Signal detrending using SciPy's `detrend` function
-   - (Optional) Bandpass filtering using SciPy's `butter` filter with zero-phase filtering
+   - Optional signal detrending available through configuration
+   - Bandpass filtering controlled through frequency band parameters
 
-2. **FFT Implementation**:
-   - NumPy's `fft.rfft` function for computational efficiency
-   - Return only the positive frequencies since the input signal is real
-
-3. **Frequency Selection**:
-   - The frequency bins corresponding to the low-frequency range are identified based on the sampling rate (1/TR)
-   - For a typical TR of 2 seconds, the Nyquist frequency is 0.25 Hz, and the frequency resolution is 1/(N*TR) Hz per bin
+3. **Processing Pipeline**:
+   - Automatic calculation of appropriate frequency bins based on TR
+   - Parallel processing support for multi-core systems
+   - Robust handling of edge cases and numerical stability
 
 4. **Output Generation**:
-   - The results are saved as NIfTI files with the same dimensions and header information as the input data
+   - Results are saved as NIfTI files with the same dimensions and header information as the input data
+   - All metrics (ALFF, mALFF, fALFF, RSFA) generated in separate output files
    - These files can be directly used in standard neuroimaging software for visualization and further analysis
 
 ### Interpretation
@@ -260,6 +263,15 @@ ALFF has been widely used to detect abnormal brain activity in various disorders
 
 In this pipeline, ALFF calculation can be customized with the following parameters:
 
+- `compute_falff`: Boolean to enable/disable fALFF computation (default: true)
+  - Enables or disables the calculation of fractional ALFF
+
+- `compute_malff`: Boolean to enable/disable mALFF computation (default: true)
+  - Enables or disables the calculation of mean-normalized ALFF
+
+- `compute_rsfa`: Boolean to enable/disable RSFA computation (default: true)
+  - Enables or disables the calculation of Resting State Fluctuation Amplitude
+  
 - `alff_bandpass_low`: Lower frequency bound (default: 0.01 Hz)
   - Typical range: 0.01-0.03 Hz
   - Lower values may include more physiological noise
@@ -729,30 +741,30 @@ This pipeline implements two main methods for calculating the Hurst exponent:
 
 In this pipeline, the Hurst exponent calculation is implemented with several technical considerations:
 
-1. **Preprocessing**:
-   - Signal extraction and basic preprocessing (motion correction, detrending)
-   - (Optional) Low-pass filtering to focus on the frequency range of interest
-   - No spatial smoothing before Hurst exponent calculation (to preserve local temporal dynamics)
+1. **Library Integration**:
+   - Utilizes the `nolds` library for efficient and validated Hurst exponent calculation
+   - Multiple implementation methods (DFA and R/S) with optimized algorithms
+   - Robust to various time series characteristics and length
 
-2. **DFA Implementation**:
-   - Uses a linear detrending approach (DFA-1)
-   - Segment lengths are chosen to span a range from short to long intervals (typically 4 to N/4)
-   - Segments are logarithmically spaced to ensure even distribution on log-log plots
-   - Minimum 4 points required on the log-log plot for reliable slope estimation
+2. **Preprocessing**:
+   - Automatic mask generation based on signal variance when a mask is not provided
+   - Smart handling of voxels with insufficient variance
+   - Extensible preprocessing pipeline for future enhancements
 
-3. **R/S Implementation**:
-   - Implements classical R/S analysis with multiple segment lengths
-   - Handles edge effects by ensuring sufficient samples at all scales
-   - Employs robust regression techniques to estimate the scaling exponent
+3. **Computational Efficiency**:
+   - Progress reporting for long computations
+   - Optimized voxel iteration
+   - Error handling to prevent pipeline failures during calculation
 
 4. **Statistical Robustness**:
-   - Confidence intervals for H are estimated using bootstrapping
-   - Goodness-of-fit for the scaling relationship is quantified
-   - Assessment of stationarity to validate the application of these methods
+   - Automatic outlier detection and handling
+   - NaN replacement with appropriate default values
+   - Z-score normalization for statistical comparison
 
 5. **Output Generation**:
-   - Results are saved as a NIfTI file with the same dimensions as the input data
-   - Additional diagnostic plots may be generated for quality control
+   - Both raw and normalized (z-score) Hurst exponent maps
+   - Detailed logging of processing steps and parameters
+   - Comprehensive error reporting for troubleshooting
 
 ### Interpretation
 
@@ -867,6 +879,13 @@ In this pipeline, Hurst exponent calculation can be customized with:
 - `max_scale`: Maximum window size for scaling analysis (default: N/4)
   - N is the length of the time series
   - Should not exceed N/4 to ensure sufficient windows for averaging
+  
+- `hurst_normalize`: Boolean to enable/disable z-score normalization (default: true)
+  - When enabled, a normalized version of the Hurst map will be generated
+  
+- `min_var`: Minimum variance threshold for time series (default: 1e-6)
+  - Time series with variance below this threshold will be skipped
+  - Helps prevent numerical issues with near-constant signals
 
 ### Advantages and Limitations
 
@@ -978,30 +997,31 @@ The pipeline implements two main methods for calculating fractal dimension:
 
 In this pipeline, the fractal dimension calculation is implemented with several technical considerations:
 
-1. **Preprocessing**:
-   - Signal extraction and basic preprocessing (motion correction, detrending)
-   - (Optional) Band-pass filtering to focus on frequencies of interest
-   - No spatial smoothing before FD calculation (to preserve local complexity)
+1. **Multiple Methods**:
+   - **Higuchi Fractal Dimension** implementation optimized for time series data
+     - Configurable kmax parameter for controlling maximum scale
+     - Robust linear regression for slope estimation
+     - Comprehensive error handling for edge cases
+   
+   - **Power Spectral Density (PSD)** method using Welch's periodogram
+     - Optimal window selection for spectral estimation
+     - Log-log regression for spectral exponent calculation
+     - Conversion from spectral exponent to fractal dimension
 
-2. **Higuchi Implementation**:
-   - Uses multiple k values, typically logarithmically spaced between 1 and some maximum (e.g., N/10)
-   - Implements robust linear regression for slope estimation
-   - Provides goodness-of-fit measures to assess the quality of the fractal scaling
+2. **Preprocessing**:
+   - Automatic detection of voxels with insufficient variance
+   - Support for both user-provided and auto-generated brain masks
+   - Preprocessing steps to enhance signal quality before dimension calculation
 
-3. **PSD Implementation**:
-   - Uses Welch's method for more stable power spectrum estimation
-   - Applies windowing (typically Hamming window) to reduce spectral leakage
-   - Focuses on the frequency range showing power-law scaling
-   - Implements robust fitting methods to reduce sensitivity to noise
+3. **Computational Robustness**:
+   - Handling of numerical edge cases (near-zero variance, NaN values)
+   - Graceful failure modes that preserve overall pipeline execution
+   - Progress reporting for this computationally intensive feature
 
-4. **Validation Checks**:
-   - Linearity assessment in log-log plots to confirm fractal-like scaling
-   - Confidence intervals for dimension estimates
-   - Statistical tests to distinguish fractal from non-fractal time series
-
-5. **Output Generation**:
-   - Results are saved as a NIfTI file with the same dimensions as the input data
-   - Values typically range from 1.0 to 2.0, with higher values indicating more complex signals
+4. **Output Generation**:
+   - Generation of both raw and normalized (z-score) fractal dimension maps
+   - Support for standard neuroimaging formats for further analysis
+   - Detailed logging to facilitate troubleshooting and reproducibility
 
 ### Interpretation
 
@@ -1108,9 +1128,10 @@ In this pipeline, fractal dimension calculation can be customized with:
   - "higuchi": Higuchi Fractal Dimension (generally more direct and robust for time series)
   - "psd": Power Spectral Density method (connects to spectral properties)
 
-- `higuchi_kmax`: Maximum k value for Higuchi method (default: N/10)
+- `kmax`: Maximum k value for Higuchi method (default: 10)
+  - Controls the maximum scale for analysis in the Higuchi algorithm
   - Higher values include more scales but may introduce noise
-  - Typical range: N/20 to N/5 depending on time series length
+  - Typical range: 10 to 64 depending on time series length and characteristics
 
 - `psd_freq_range`: Frequency range for power-law fitting in PSD method
   - Default: [0.01, 0.1] Hz
@@ -1119,6 +1140,17 @@ In this pipeline, fractal dimension calculation can be customized with:
 - `fit_method`: Method for slope estimation (options: "ols", "robust")
   - "ols": Ordinary least squares regression
   - "robust": Robust regression methods less sensitive to outliers
+  
+- `fractal_normalize`: Boolean to enable/disable z-score normalization (default: true)
+  - When enabled, a normalized version of the fractal dimension map will be generated
+  
+- `min_var`: Minimum variance threshold for time series (default: 1e-6)
+  - Time series with variance below this threshold will be skipped
+  - Helps prevent numerical issues with near-constant signals
+
+- `n_jobs`: Number of parallel jobs for computation (default: 4)
+  - Controls parallel processing for improved performance
+  - Should be set based on available CPU cores
 
 ### Advantages and Limitations
 

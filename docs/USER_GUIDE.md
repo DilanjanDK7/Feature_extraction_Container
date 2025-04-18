@@ -393,3 +393,100 @@ To integrate this pipeline with existing workflows:
 1. Export results from this pipeline
 2. Use custom scripts to convert outputs to formats required by other tools
 3. Consider creating a wrapper script that calls both workflows in sequence 
+
+## Feature Extraction
+
+### Available Features
+
+The pipeline can extract the following analytical features from resting-state fMRI data:
+
+#### ALFF and fALFF (Amplitude of Low-Frequency Fluctuations)
+
+The ALFF implementation has been enhanced with:
+
+- Integration with AFNI's `3dRSFC` tool for efficient computation
+- Support for multiple metrics in a single processing pass:
+  - ALFF: Standard amplitude of low-frequency fluctuations
+  - fALFF: Fractional ALFF (ratio of low-frequency power to total power)
+  - mALFF: Mean-normalized ALFF
+  - RSFA: Resting State Fluctuation Amplitude
+- Improved error handling and robust processing pipeline
+- Automatic cleanup of temporary files
+- Comprehensive validation of inputs and outputs
+
+Configuration options in `config.yaml`:
+```yaml
+# ALFF settings
+compute_falff: true  # Enable/disable fALFF
+compute_malff: true  # Enable/disable mALFF
+compute_rsfa: true   # Enable/disable RSFA
+alff_bandpass_low: 0.01  # Lower frequency bound (Hz)
+alff_bandpass_high: 0.08  # Upper frequency bound (Hz)
+```
+
+#### ReHo (Regional Homogeneity)
+
+ReHo calculates the Kendall's coefficient of concordance (KCC) for each voxel and its neighbors, measuring local synchronization of BOLD signals.
+
+#### Hurst Exponent
+
+The Hurst exponent implementation has been significantly improved with:
+
+- Parallel processing support for faster computation
+- Two calculation methods available:
+  - DFA (Detrended Fluctuation Analysis): More robust to non-stationarity
+  - R/S (Rescaled Range): Classical approach for long-memory processes
+- Progress bar for real-time monitoring
+- Enhanced error handling and numerical stability
+- Both raw and normalized (z-score) outputs
+
+Configuration options in `config.yaml`:
+```yaml
+# Hurst exponent settings
+compute_hurst: true  # Enable/disable Hurst computation
+hurst_method: "dfa"  # Method: "dfa" or "rs"
+n_jobs: 4  # Number of parallel jobs for computation
+min_var: 1e-6  # Minimum variance threshold
+hurst_normalize: true  # Enable/disable z-score normalization
+```
+
+#### Fractal Dimension
+
+The fractal dimension implementation has been enhanced with:
+
+- Parallel processing for significant performance improvement
+- Two calculation methods:
+  - Higuchi Fractal Dimension (HFD): Direct time-domain measure
+  - Power Spectral Density (PSD): Frequency-domain approach
+- Improved robustness to noisy or short time series
+- Comprehensive error handling and edge case management
+- Both raw and normalized (z-score) output maps
+
+Configuration options in `config.yaml`:
+```yaml
+# Fractal dimension settings
+compute_fractal: true  # Enable/disable fractal dimension
+fractal_method: "higuchi"  # Method: "higuchi" or "psd"
+kmax: 10  # Maximum lag for Higuchi method
+n_jobs: 4  # Number of parallel jobs
+min_var: 1e-6  # Minimum variance threshold
+fractal_normalize: true  # Enable/disable z-score normalization
+```
+
+#### QM-FFT (Quantum Mechanical Fourier Transform)
+
+Applies quantum mechanical principles to analyze fMRI data in frequency domain.
+
+#### RSN (Resting State Network) Analysis
+
+Extracts time series from established resting state networks using the Yeo atlas.
+
+### Configuration Options
+
+Feature extraction is highly configurable through the `config.yaml` file. Key parameters include:
+
+1. **Feature Selection**: Enable/disable specific features
+2. **Processing Parameters**: Customize algorithms for each feature
+3. **Performance Settings**: Control parallel processing and memory usage
+
+See the [Technical Details](TECHNICAL_DETAILS.md) document for comprehensive information about each feature's parameters and algorithms. 

@@ -9,6 +9,10 @@ import time
 import numpy as np
 import nibabel as nib
 from scipy import signal
+from tqdm import tqdm
+import multiprocessing
+from joblib import Parallel, delayed
+import sys
 
 
 def compute_higuchi_fd(ts, kmax=10):
@@ -28,6 +32,10 @@ def compute_higuchi_fd(ts, kmax=10):
         Higuchi Fractal Dimension
     """
     n = len(ts)
+    if n < kmax * 2:
+        # Time series too short for reliable estimation with this kmax
+        return np.nan
+        
     lk = np.zeros(kmax)
     x_reg = np.array(range(kmax))
     y_reg = np.zeros(kmax)
@@ -42,6 +50,11 @@ def compute_higuchi_fd(ts, kmax=10):
             # Number of subsequences
             n_m = int((n - m) / k)
             
+            # Skip if too few points
+            if n_m <= 1:
+                lm[m] = np.nan
+                continue
+                
             for i in range(1, n_m):
                 ll += abs(ts[m + i * k] - ts[m + (i - 1) * k])
             
@@ -50,16 +63,25 @@ def compute_higuchi_fd(ts, kmax=10):
             lm[m] = ll * (n - 1) / (n_m * k)
         
         # Mean length for step k
-        lk[k - 1] = np.mean(lm)
-        y_reg[k - 1] = np.log(lk[k - 1])
+        lk[k - 1] = np.nanmean(lm)
+        y_reg[k - 1] = np.log(lk[k - 1]) if lk[k - 1] > 0 else np.nan
     
-    x_reg = np.log(1.0 / np.array(range(1, kmax + 1)))
+    # Filter out invalid values
+    valid = ~np.isnan(y_reg)
+    if np.sum(valid) < 2:
+        return np.nan
+        
+    x_reg_valid = np.log(1.0 / np.array(range(1, kmax + 1)))[valid]
+    y_reg_valid = y_reg[valid]
     
     # Perform linear regression
-    slopes = np.polyfit(x_reg, y_reg, 1)
-    
-    # Return the slope (fractal dimension)
-    return slopes[0]
+    try:
+        slopes = np.polyfit(x_reg_valid, y_reg_valid, 1)
+        
+        # Return the slope (fractal dimension)
+        return slopes[0]
+    except:
+        return np.nan
 
 
 def compute_psd_fd(ts):
@@ -80,27 +102,75 @@ def compute_psd_fd(ts):
     ts = ts - np.mean(ts)
     
     # Compute PSD using Welch's method
-    freqs, psd = signal.welch(ts, nperseg=min(256, len(ts)//4))
-    
-    # Avoid zero frequency and use only positive frequencies
-    mask = (freqs > 0)
-    freqs = freqs[mask]
-    psd = psd[mask]
-    
-    # Perform linear regression in log-log space
-    if len(freqs) > 5:  # Ensure enough points for regression
-        slopes = np.polyfit(np.log10(freqs), np.log10(psd), 1)
+    try:
+        freqs, psd = signal.welch(ts, nperseg=min(256, len(ts)//4))
         
-        # Calculate fractal dimension from PSD slope
-        # FD = (5 - beta) / 2, where beta is the negative of the slope
-        beta = -slopes[0]
-        fd = (5 - beta) / 2
-        return fd
-    else:
+        # Avoid zero frequency and use only positive frequencies
+        mask = (freqs > 0)
+        freqs = freqs[mask]
+        psd = psd[mask]
+        
+        # Perform linear regression in log-log space
+        if len(freqs) > 5:  # Ensure enough points for regression
+            # Remove zeros from PSD to avoid log(0)
+            valid = psd > 0
+            if np.sum(valid) < 5:
+                return np.nan
+                
+            log_freqs = np.log10(freqs[valid])
+            log_psd = np.log10(psd[valid])
+            
+            slopes = np.polyfit(log_freqs, log_psd, 1)
+            
+            # Calculate fractal dimension from PSD slope
+            # FD = (5 - beta) / 2, where beta is the negative of the slope
+            beta = -slopes[0]
+            fd = (5 - beta) / 2
+            
+            # Valid range for fractal dimension is typically 1-2
+            if 0.5 < fd < 2.5:  # Slightly wider range to account for estimation errors
+                return fd
+    except:
+        pass
+        
+    return np.nan
+
+
+def compute_voxel_fractal(ts, method='higuchi', kmax=10):
+    """
+    Compute Fractal Dimension for a single voxel time series.
+    
+    Parameters:
+    -----------
+    ts : numpy.ndarray
+        Input time series for a single voxel
+    method : str
+        Method for fractal dimension calculation ('higuchi' or 'psd')
+    kmax : int
+        Maximum lag parameter for Higuchi method
+        
+    Returns:
+    --------
+    float
+        Fractal Dimension value or NaN if calculation fails
+    """
+    # Skip if time series has no variance
+    if np.std(ts) <= 1e-6:
+        return np.nan
+    
+    try:
+        # Calculate fractal dimension using specified method
+        if method == 'higuchi':
+            return compute_higuchi_fd(ts, kmax)
+        elif method == 'psd':
+            return compute_psd_fd(ts)
+        else:
+            return compute_higuchi_fd(ts, kmax)  # Default to Higuchi
+    except Exception:
         return np.nan
 
 
-def compute_fractal(fmri_file, output_file, method='higuchi', kmax=10, mask_file=None):
+def compute_fractal(fmri_file, output_file, method='higuchi', kmax=10, mask_file=None, n_jobs=1, min_var=1e-6):
     """
     Compute Fractal Dimension from fMRI data.
     
@@ -116,6 +186,10 @@ def compute_fractal(fmri_file, output_file, method='higuchi', kmax=10, mask_file
         Maximum lag parameter for Higuchi method. Default is 10.
     mask_file : str, optional
         Path to a brain mask. If not provided, a mask will be created based on signal variance.
+    n_jobs : int, optional
+        Number of parallel jobs to run. Default is 1.
+    min_var : float, optional
+        Minimum variance threshold for time series. Default is 1e-6.
     """
     print("Starting Fractal Dimension calculation...")
     start_time = time.time()
@@ -126,74 +200,64 @@ def compute_fractal(fmri_file, output_file, method='higuchi', kmax=10, mask_file
         os.makedirs(output_dir)
     
     # Load fMRI data
-    print(f"Loading fMRI data from {fmri_file}...")
-    img = nib.load(fmri_file)
-    data = img.get_fdata()
-    affine = img.affine
-    header = img.header
+    try:
+        print(f"Loading fMRI data from {fmri_file}...")
+        img = nib.load(fmri_file)
+        data = img.get_fdata()
+        affine = img.affine
+        header = img.header
+    except Exception as e:
+        print(f"Error loading fMRI data: {e}")
+        sys.exit(1)
     
     # Get dimensions
     nx, ny, nz, nt = data.shape
     print(f"Data dimensions: {nx} x {ny} x {nz} x {nt}")
     
     # Create or load mask
-    if mask_file:
-        print(f"Loading mask from {mask_file}...")
-        mask_img = nib.load(mask_file)
-        mask = mask_img.get_fdata() > 0
-    else:
-        print("Creating mask from fMRI data...")
-        # Simple mask: voxels with non-zero variance
-        mask = np.std(data, axis=3) > 0
+    try:
+        if mask_file:
+            print(f"Loading mask from {mask_file}...")
+            mask_img = nib.load(mask_file)
+            mask = mask_img.get_fdata() > 0
+        else:
+            print("Creating mask from fMRI data...")
+            # Simple mask: voxels with non-zero variance
+            mask = np.std(data, axis=3) > min_var
+    except Exception as e:
+        print(f"Error creating/loading mask: {e}")
+        sys.exit(1)
     
     # Ensure mask dimensions match
     if mask.shape[:3] != data.shape[:3]:
-        raise ValueError("Mask dimensions do not match fMRI data dimensions")
+        print(f"Mask dimensions {mask.shape[:3]} do not match fMRI data dimensions {data.shape[:3]}")
+        sys.exit(1)
+    
+    # Create coordinates for voxels to process
+    coords = [(x, y, z) for x in range(nx) for y in range(ny) for z in range(nz) if mask[x, y, z]]
+    print(f"Processing {len(coords)} voxels...")
+    
+    # Parallel processing function
+    def process_voxel(coord):
+        x, y, z = coord
+        ts = data[x, y, z, :]
+        return (x, y, z, compute_voxel_fractal(ts, method, kmax))
+    
+    # Set number of jobs
+    actual_n_jobs = min(n_jobs, multiprocessing.cpu_count())
+    print(f"Using {actual_n_jobs} parallel jobs")
+    
+    # Process voxels in parallel with progress bar
+    results = Parallel(n_jobs=actual_n_jobs)(
+        delayed(process_voxel)(coord) for coord in tqdm(coords, desc=f"Computing {method.capitalize()} FD")
+    )
     
     # Create Fractal Dimension map
-    print(f"Calculating Fractal Dimension using {method} method...")
     fd_map = np.zeros((nx, ny, nz))
     
-    # Set fractal dimension calculation method
-    if method == 'higuchi':
-        fd_func = lambda ts: compute_higuchi_fd(ts, kmax)
-    elif method == 'psd':
-        fd_func = compute_psd_fd
-    else:
-        print(f"Unknown method {method}. Using Higuchi method.")
-        fd_func = lambda ts: compute_higuchi_fd(ts, kmax)
-    
-    # Loop through masked voxels
-    total_voxels = np.sum(mask)
-    processed_voxels = 0
-    last_update = 0
-    
-    for x in range(nx):
-        for y in range(ny):
-            for z in range(nz):
-                if mask[x, y, z]:
-                    # Get time series for this voxel
-                    ts = data[x, y, z, :]
-                    
-                    # Skip if time series has no variance
-                    if np.std(ts) <= 1e-6:
-                        continue
-                    
-                    try:
-                        # Calculate fractal dimension
-                        fd_map[x, y, z] = fd_func(ts)
-                    except Exception as e:
-                        # If calculation fails, set to NaN
-                        fd_map[x, y, z] = np.nan
-                        print(f"Error calculating fractal dimension at ({x},{y},{z}): {e}")
-                    
-                    processed_voxels += 1
-                    
-                    # Update progress every 5%
-                    progress = processed_voxels / total_voxels
-                    if progress - last_update >= 0.05:
-                        print(f"Progress: {progress * 100:.1f}% ({processed_voxels}/{total_voxels} voxels)")
-                        last_update = progress
+    # Fill the map with results
+    for x, y, z, fd in results:
+        fd_map[x, y, z] = fd
     
     # Replace NaNs with 0
     fd_map = np.nan_to_num(fd_map)
@@ -204,6 +268,8 @@ def compute_fractal(fmri_file, output_file, method='higuchi', kmax=10, mask_file
     if np.sum(brain_mask) > 0:
         mean_fd = np.mean(fd_map[brain_mask])
         std_fd = np.std(fd_map[brain_mask])
+        print(f"Fractal dimension statistics: mean = {mean_fd:.4f}, std = {std_fd:.4f}")
+        
         if std_fd > 0:
             fd_map_norm = np.zeros_like(fd_map)
             fd_map_norm[brain_mask] = (fd_map[brain_mask] - mean_fd) / std_fd
@@ -240,7 +306,11 @@ if __name__ == '__main__':
                       help='Method for fractal dimension calculation (higuchi or psd). Default is higuchi.')
     parser.add_argument('--kmax', type=int, default=10, help='Maximum lag for Higuchi method. Default is 10.')
     parser.add_argument('--mask', help='Brain mask (optional, will be created if not provided)')
+    parser.add_argument('--n-jobs', type=int, default=1, 
+                      help='Number of parallel jobs for computation. Default is 1.')
+    parser.add_argument('--min-var', type=float, default=1e-6,
+                      help='Minimum variance threshold for time series. Default is 1e-6.')
     
     args = parser.parse_args()
     
-    compute_fractal(args.fmri, args.output, args.method, args.kmax, args.mask) 
+    compute_fractal(args.fmri, args.output, args.method, args.kmax, args.mask, args.n_jobs, args.min_var) 
